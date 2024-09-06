@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,4 +42,30 @@ func TestStore(t *testing.T) {
 		t.Error(err)
 	}
 	assert.Equal(t, data, b)
+
+	s.Delete(key)
+}
+
+func TestDelete(t *testing.T) {
+	// create a new store
+	opts := StoreOpts{
+		PathTransform: CASPathTransform,
+	}
+	s := NewStore(opts)
+	key := "key2"
+
+	// write to the store
+	data := []byte("hello world!")
+	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+		t.Error(err)
+	}
+
+	// sleep for 2 seconds
+	time.Sleep(2 * time.Second)
+
+	// delete from the store
+	if err := s.Delete(key); err != nil {
+		t.Error(err)
+	}
+
 }

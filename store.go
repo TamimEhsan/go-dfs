@@ -5,11 +5,14 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"path"
 	"strings"
 )
+
+const defaultRootFolderName = "storage"
 
 type PathTransformFunc func(string) PathKey
 
@@ -22,15 +25,15 @@ func (p PathKey) fileNameWithPath() string {
 	return path.Join(p.Pathname, p.Filename)
 }
 
-func DefaultPathTransform(p string) PathKey {
+func DefaultPathTransform(key string) PathKey {
 	return PathKey{
-		Pathname: "store",
-		Filename: p,
+		Pathname: defaultRootFolderName,
+		Filename: key,
 	}
 }
 
-func CASPathTransform(p string) PathKey {
-	hash := sha1.Sum([]byte(p))
+func CASPathTransform(key string) PathKey {
+	hash := sha1.Sum([]byte(key))
 	hashStr := hex.EncodeToString(hash[:])
 
 	blockSize := 5
@@ -57,6 +60,7 @@ func CASPathTransform(p string) PathKey {
 }
 
 type StoreOpts struct {
+	Root          string
 	PathTransform PathTransformFunc
 }
 
@@ -65,9 +69,32 @@ type Store struct {
 }
 
 func NewStore(opts StoreOpts) *Store {
+	if opts.PathTransform == nil {
+		opts.PathTransform = DefaultPathTransform
+	}
+
+	if opts.Root == "" {
+		opts.Root = defaultRootFolderName
+	}
+
 	return &Store{
 		StoreOpts: opts,
 	}
+}
+
+// check if the file exists
+func (s *Store) Exists(key string) bool {
+	pathKey := s.PathTransform(key)
+	fileNameWithPath := path.Join(s.Root, pathKey.fileNameWithPath())
+	_, err := os.Stat(fileNameWithPath)
+	return err != fs.ErrNotExist
+}
+
+func (s *Store) Delete(key string) error {
+	pathKey := s.PathTransform(key)
+	filepath := path.Join(s.Root, pathKey.Pathname)
+
+	return os.RemoveAll(strings.Join(strings.Split(filepath, "/")[:2], "/"))
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
@@ -89,7 +116,7 @@ func (s *Store) Read(key string) (io.Reader, error) {
 
 func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
 	pathKey := s.PathTransform(key)
-	fileNameWithPath := pathKey.fileNameWithPath()
+	fileNameWithPath := path.Join(s.Root, pathKey.fileNameWithPath())
 	f, err := os.Open(fileNameWithPath)
 	if err != nil {
 		return nil, err
@@ -100,12 +127,13 @@ func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
 
 func (s *Store) writeStream(key string, r io.Reader) error {
 	pathKey := s.PathTransform(key)
+	filepath := path.Join(s.Root, pathKey.Pathname)
 
-	if err := os.MkdirAll(pathKey.Pathname, os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath, os.ModePerm); err != nil {
 		return err
 	}
 
-	fileNameWithPath := pathKey.fileNameWithPath()
+	fileNameWithPath := path.Join(s.Root, pathKey.fileNameWithPath())
 	f, err := os.Create(fileNameWithPath)
 	if err != nil {
 		return err
