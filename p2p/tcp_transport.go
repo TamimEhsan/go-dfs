@@ -3,7 +3,6 @@ package p2p
 import (
 	"fmt"
 	"net"
-	"sync"
 )
 
 // TCPPeer represents a remote node
@@ -25,9 +24,8 @@ type TCPTransportOpts struct {
 type TCPTransport struct {
 	TCPTransportOpts
 	listener net.Listener
-
-	mu    sync.RWMutex
-	peers map[net.Addr]Peer
+	rpcCh    chan RPC
+	OnPeer   func(Peer) error
 }
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
@@ -37,10 +35,22 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
+}
+
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
 		TCPTransportOpts: opts,
+		rpcCh:            make(chan RPC),
 	}
+}
+
+// consume implements the transport interface
+// and returns a receive only channel to consume
+// incoming messages
+func (t *TCPTransport) Consume() <-chan RPC {
+	return t.rpcCh
 }
 
 // init a listener and start accept loop for
@@ -82,17 +92,22 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 		return
 	}
 
+	if t.OnPeer != nil {
+		if err := t.OnPeer(peer); err != nil {
+			return
+		}
+	}
+
 	fmt.Println("Handshake completed")
 
-	// buf := make([]byte, 1024)
+	msg := RPC{}
 	for {
-
-		msg := Message{}
 		if err := t.Decoder.Decode(conn, &msg); err != nil {
 			fmt.Println("decode error: ", err)
 			return
 		}
-		fmt.Println("received message: ", string(msg.Payload))
+		msg.From = conn.RemoteAddr().String()
+		t.rpcCh <- msg
 	}
 
 }

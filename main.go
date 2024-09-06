@@ -18,6 +18,15 @@ func main() {
 	if err := t.ListenAndAccept(); err != nil {
 		fmt.Println("error: ", err)
 	}
+
+	go func() {
+		rpcCh := t.Consume()
+		for {
+			msg := <-rpcCh
+			fmt.Println("received from ", msg.From, " :", string(msg.Payload))
+		}
+	}()
+
 	select {}
 	// run telnet localhost 4000 to check
 	// if the server is listening and accepting connections

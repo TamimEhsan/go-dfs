@@ -1,8 +1,8 @@
-package p2p 
+package p2p
 
 // Message holds any arbitrary data
 // that can be sent over the network
-type Message struct {
+type RPC struct {
+	From    string
 	Payload []byte
 }
-
