@@ -25,7 +25,7 @@ type TCPTransport struct {
 	TCPTransportOpts
 	listener net.Listener
 	rpcCh    chan RPC
-	OnPeer   func(Peer) error
+	PushPeer func(Peer) error
 }
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
@@ -33,6 +33,15 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 		conn:     conn,
 		outbound: outbound,
 	}
+}
+
+func (p *TCPPeer) Send(data []byte) error {
+	_, err := p.conn.Write(data)
+	return err
+}
+
+func (p *TCPPeer) RemoteAddr() net.Addr {
+	return p.conn.RemoteAddr()
 }
 
 func (p *TCPPeer) Close() error {
@@ -55,6 +64,15 @@ func (t *TCPTransport) Consume() <-chan RPC {
 
 func (t *TCPTransport) Close() error {
 	return t.listener.Close()
+}
+
+func (t *TCPTransport) Dial(addr string) error {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+	go t.handleConn(conn, true)
+	return nil
 }
 
 // init a listener and start accept loop for
@@ -84,26 +102,27 @@ func (t *TCPTransport) startAcceptLoop() {
 			fmt.Println("accept error: ", err)
 		}
 		fmt.Println("new connection from: ", conn.RemoteAddr())
-		go t.handleConn(conn)
+		go t.handleConn(conn, false)
 	}
+
 }
 
 // handle incoming connection
-func (t *TCPTransport) handleConn(conn net.Conn) {
+func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 
 	defer func() {
 		fmt.Println("closing connection: ", conn.RemoteAddr())
 		conn.Close()
 	}()
 
-	peer := NewTCPPeer(conn, true)
+	peer := NewTCPPeer(conn, outbound)
 
 	if err := t.HandShakeFunc(peer); err != nil {
 		return
 	}
 
-	if t.OnPeer != nil {
-		if err := t.OnPeer(peer); err != nil {
+	if t.PushPeer != nil {
+		if err := t.PushPeer(peer); err != nil {
 			return
 		}
 	}

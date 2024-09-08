@@ -7,26 +7,48 @@ import (
 	"github.com/tamimehsan/go-distributed-fs/p2p"
 )
 
-func main() {
+func makeServer(listenAddr string, nodes ...string) *FileServer {
 	tcpTransportOpts := p2p.TCPTransportOpts{
-		ListenAddr:    ":3000",
+		ListenAddr:    listenAddr,
 		HandShakeFunc: p2p.NOPHandshake,
 		Decoder:       p2p.DefaultDecoder{},
 	}
 	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
 	FileServerOpts := FileServerOpts{
-		StorageRoot:       "3000_files",
+		StorageRoot:       listenAddr + "_network",
 		PathTransformFunc: CASPathTransform,
 		Transport:         tcpTransport,
+		BootstrapNodes:    nodes,
 	}
 
-	server := NewFileServer(FileServerOpts)
+	s := NewFileServer(FileServerOpts)
+
+	// tcp transport will push peers to the server
+	tcpTransport.PushPeer = s.AddPeer
+
+	return s
+}
+
+func main() {
+
+	s1 := makeServer(":4000", "")
+	s2 := makeServer(":4001", ":4000")
+
 	go func() {
-		time.Sleep(5 * time.Second)
-		server.Stop()
+		if err := s1.Start(); err != nil {
+			log.Fatal(err)
+		}
 	}()
-	if err := server.Start(); err != nil {
-		log.Fatalf("error starting server: %v", err)
-	}
+
+	time.Sleep(2 * time.Second)
+
+	go s2.Start()
+
+	select {}
+
+	// go func() {
+	// 	time.Sleep(5 * time.Second)
+	// 	server.Stop()
+	// }()
 
 }
