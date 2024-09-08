@@ -1,34 +1,32 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"time"
 
 	"github.com/tamimehsan/go-distributed-fs/p2p"
 )
 
 func main() {
-
-	tcpOpts := p2p.TCPTransportOpts{
-		ListenAddr:    ":4000",
-		Decoder:       p2p.DefaultDecoder{},
+	tcpTransportOpts := p2p.TCPTransportOpts{
+		ListenAddr:    ":3000",
 		HandShakeFunc: p2p.NOPHandshake,
+		Decoder:       p2p.DefaultDecoder{},
+	}
+	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
+	FileServerOpts := FileServerOpts{
+		StorageRoot:       "3000_files",
+		PathTransformFunc: CASPathTransform,
+		Transport:         tcpTransport,
 	}
 
-	t := p2p.NewTCPTransport(tcpOpts)
-	if err := t.ListenAndAccept(); err != nil {
-		fmt.Println("error: ", err)
-	}
-
+	server := NewFileServer(FileServerOpts)
 	go func() {
-		rpcCh := t.Consume()
-		for {
-			msg := <-rpcCh
-			fmt.Println("received from ", msg.From, " :", string(msg.Payload))
-		}
+		time.Sleep(5 * time.Second)
+		server.Stop()
 	}()
-
-	select {}
-	// run telnet localhost 4000 to check
-	// if the server is listening and accepting connections
+	if err := server.Start(); err != nil {
+		log.Fatalf("error starting server: %v", err)
+	}
 
 }

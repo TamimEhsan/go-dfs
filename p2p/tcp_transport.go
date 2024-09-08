@@ -53,6 +53,10 @@ func (t *TCPTransport) Consume() <-chan RPC {
 	return t.rpcCh
 }
 
+func (t *TCPTransport) Close() error {
+	return t.listener.Close()
+}
+
 // init a listener and start accept loop for
 // incoming connections
 func (t *TCPTransport) ListenAndAccept() error {
@@ -70,6 +74,12 @@ func (t *TCPTransport) ListenAndAccept() error {
 func (t *TCPTransport) startAcceptLoop() {
 	for {
 		conn, err := t.listener.Accept()
+
+		if err == net.ErrClosed {
+			fmt.Println("listener closed")
+			return
+		}
+
 		if err != nil {
 			fmt.Println("accept error: ", err)
 		}

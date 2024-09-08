@@ -12,4 +12,6 @@ type Transport interface {
 
 	// consume returns a recieve only channel 
 	Consume() <-chan RPC
+
+	Close() error
 }
