@@ -42,19 +42,25 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 	}
 }
 
-type Payload struct {
-	Key  string
-	Data []byte
+type Message struct {
+	Payload any
 }
 
-func (s *FileServer) broadcast(p *Payload) error {
-
-	peers := []io.Writer{}
-	for _, peer := range s.peers {
-		peers = append(peers, peer)
+func (s *FileServer) broadcast(msg *Message) error {
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(msg); err != nil {
+		return err
 	}
-	mw := io.MultiWriter(peers...)
-	return gob.NewEncoder(mw).Encode(p)
+
+	for _, peer := range s.peers {
+
+		if err := peer.Send(buf.Bytes()); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
@@ -65,9 +71,8 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 		return err
 	}
 
-	p := &Payload{
-		Key:  key,
-		Data: buf.Bytes(),
+	p := &Message{
+		Payload: buf.Bytes(),
 	}
 
 	return s.broadcast(p)
@@ -75,7 +80,7 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 
 func (s *FileServer) Stop() {
 	close(s.quitCh)
-	fmt.Println("server signalled to stop")
+	fmt.Println("server signaled to stop")
 }
 
 func (s *FileServer) AddPeer(peer p2p.Peer) error {
@@ -117,11 +122,13 @@ func (s *FileServer) loop() {
 			return
 		case rpc := <-s.Transport.Consume():
 
-			var p Payload
+			var p Message
 			if err := gob.NewDecoder(bytes.NewReader(rpc.Payload)).Decode(&p); err != nil {
 				log.Println("error decoding rpc: ", err)
 			}
-			fmt.Println("recieved message", p.Key, string(p.Data))
+
+			fmt.Println("recieved message", string(p.Payload.([]uint8)))
+
 			// fmt.Println("rpc received on server ", s.StorageRoot, ": ", string(rpc.Payload))
 
 			// handle rpc

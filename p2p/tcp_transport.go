@@ -134,7 +134,6 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 			fmt.Println("decode error: ", err)
 			return
 		}
-		
 		msg.From = conn.RemoteAddr().String()
 		t.rpcCh <- msg
 	}
