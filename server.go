@@ -43,7 +43,7 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 }
 
 type Message struct {
-	Payload any
+	Payload []byte
 }
 
 func (s *FileServer) broadcast(msg *Message) error {
@@ -127,7 +127,7 @@ func (s *FileServer) loop() {
 				log.Println("error decoding rpc: ", err)
 			}
 
-			fmt.Println("recieved message", string(p.Payload.([]uint8)))
+			fmt.Println("recieved message", string(p.Payload))
 
 			// fmt.Println("rpc received on server ", s.StorageRoot, ": ", string(rpc.Payload))
 
