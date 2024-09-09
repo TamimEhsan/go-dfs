@@ -8,8 +8,7 @@ import (
 // TCPPeer represents a remote node
 // in the TCP network
 type TCPPeer struct {
-	conn net.Conn
-
+	net.Conn
 	// if we dial a connection => outbound true
 	// if we accept a connection => inbound => outbound false
 	outbound bool
@@ -30,22 +29,22 @@ type TCPTransport struct {
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
-		conn:     conn,
+		Conn:     conn,
 		outbound: outbound,
 	}
 }
 
 func (p *TCPPeer) Send(data []byte) error {
-	_, err := p.conn.Write(data)
+	_, err := p.Conn.Write(data)
 	return err
 }
 
 func (p *TCPPeer) RemoteAddr() net.Addr {
-	return p.conn.RemoteAddr()
+	return p.Conn.RemoteAddr()
 }
 
 func (p *TCPPeer) Close() error {
-	return p.conn.Close()
+	return p.Conn.Close()
 }
 
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
@@ -129,12 +128,13 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 
 	fmt.Println("Handshake completed")
 
-	msg := RPC{}
 	for {
+		msg := RPC{}
 		if err := t.Decoder.Decode(conn, &msg); err != nil {
 			fmt.Println("decode error: ", err)
 			return
 		}
+		
 		msg.From = conn.RemoteAddr().String()
 		t.rpcCh <- msg
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"time"
 
@@ -43,6 +44,11 @@ func main() {
 	time.Sleep(2 * time.Second)
 
 	go s2.Start()
+
+	time.Sleep(2 * time.Second)
+
+	data := bytes.NewReader([]byte("hello world"))
+	s2.StoreData("hello.txt", data)
 
 	select {}
 

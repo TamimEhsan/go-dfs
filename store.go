@@ -125,6 +125,10 @@ func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
 	return f, nil
 }
 
+func (s *Store) Write(key string, r io.Reader) error {
+	return s.writeStream(key, r)
+}
+
 func (s *Store) writeStream(key string, r io.Reader) error {
 	pathKey := s.PathTransform(key)
 	filepath := path.Join(s.Root, pathKey.Pathname)
