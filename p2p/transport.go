@@ -6,10 +6,10 @@ import "net"
 type Peer interface {
 	// underlying connection of the peer
 	net.Conn
-	
+
 	Send([]byte) error
 
-	Close() error
+	CloseStream()
 }
 
 // Transport is an interface for the

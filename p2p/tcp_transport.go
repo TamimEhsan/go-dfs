@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 	"net"
+	"sync"
 )
 
 // TCPPeer represents a remote node
@@ -12,6 +13,8 @@ type TCPPeer struct {
 	// if we dial a connection => outbound true
 	// if we accept a connection => inbound => outbound false
 	outbound bool
+	//
+	wg *sync.WaitGroup // can't it be a lock?
 }
 
 type TCPTransportOpts struct {
@@ -31,6 +34,7 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
 		Conn:     conn,
 		outbound: outbound,
+		wg:       &sync.WaitGroup{},
 	}
 }
 
@@ -43,8 +47,8 @@ func (p *TCPPeer) RemoteAddr() net.Addr {
 	return p.Conn.RemoteAddr()
 }
 
-func (p *TCPPeer) Close() error {
-	return p.Conn.Close()
+func (p *TCPPeer) CloseStream() {
+	p.wg.Done()
 }
 
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
@@ -130,12 +134,21 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 
 	for {
 		msg := RPC{}
+		// read the first incoming message
+		// which is the metadata
 		if err := t.Decoder.Decode(conn, &msg); err != nil {
 			fmt.Println("decode error: ", err)
 			return
 		}
 		msg.From = conn.RemoteAddr().String()
+		// then wait till the consumer consumes the
+		// file contents and closes the stream
+		peer.wg.Add(1)
+		fmt.Println("Waiting for stream from: ", conn.RemoteAddr())
 		t.rpcCh <- msg
+
+		peer.wg.Wait()
+		fmt.Println("Stream done for: ", conn.RemoteAddr())
 	}
 
 }

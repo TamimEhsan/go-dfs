@@ -43,13 +43,17 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 }
 
 type Message struct {
-	Payload []byte
+	Payload any
 }
 
-func (s *FileServer) broadcast(msg *Message) error {
+func (s *FileServer) broadcast(msg *Message, encode bool) error {
 	buf := new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(msg); err != nil {
-		return err
+	if encode {
+		if err := gob.NewEncoder(buf).Encode(msg); err != nil {
+			return err
+		}
+	} else {
+		buf.Write(msg.Payload.([]byte))
 	}
 
 	for _, peer := range s.peers {
@@ -64,6 +68,8 @@ func (s *FileServer) broadcast(msg *Message) error {
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
+	// read the data from the reader and
+	// store it in the file store
 	buf := new(bytes.Buffer)
 	tee := io.TeeReader(r, buf)
 
@@ -71,11 +77,25 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 		return err
 	}
 
+	// broadcast the file metadata to peers
 	p := &Message{
-		Payload: buf.Bytes(),
+		Payload: []byte(key),
+	}
+	err := s.broadcast(p, true)
+	if err != nil {
+		return err
 	}
 
-	return s.broadcast(p)
+	// stream the file contents to peers
+	p = &Message{
+		Payload: buf.Bytes(),
+	}
+	// for now, just broadcast normally without encoding
+	err = s.broadcast(p, false)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *FileServer) Stop() {
@@ -122,18 +142,43 @@ func (s *FileServer) loop() {
 			return
 		case rpc := <-s.Transport.Consume():
 
+			// decode the file metadata at first from the rpc
 			var p Message
 			if err := gob.NewDecoder(bytes.NewReader(rpc.Payload)).Decode(&p); err != nil {
 				log.Println("error decoding rpc: ", err)
 			}
 
-			fmt.Println("recieved message", string(p.Payload))
+			fmt.Println("file metadata received on server ", s.StorageRoot, ": ", string(p.Payload.([]byte)))
 
-			// fmt.Println("rpc received on server ", s.StorageRoot, ": ", string(rpc.Payload))
+			peer, ok := s.peers[rpc.From]
+			if !ok {
+				log.Println("peer not found: ", rpc.From)
+				continue
+			}
 
-			// handle rpc
+			// read the file contents from the stream
+			fileContent := make([]byte, 1024)
+
+			if _, err := peer.Read(fileContent); err != nil {
+				log.Println("error reading file contents: ", err)
+			}
+
+			fmt.Println("file content received on server ", s.StorageRoot, ": ", string(fileContent))
+
+			// Close stream decreaments the zemaphore thus
+			// the peer will end the waiting
+			peer.CloseStream()
+
 		}
 	}
+}
+
+func (s *FileServer) handleMessage(from string, msg *Message) error {
+
+	fmt.Println("recieved message", string(msg.Payload.([]byte)))
+	// peer.CloseStream()
+
+	return nil
 }
 
 func (s *FileServer) Store(key string, r io.Reader) error {
