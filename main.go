@@ -47,7 +47,7 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 
-	data := bytes.NewReader([]byte("hello world"))
+	data := bytes.NewReader([]byte("Lorem Ipsum is simply dummy text of the printing and typesetting industry."))
 	s2.StoreData("hello.txt", data)
 
 	select {}

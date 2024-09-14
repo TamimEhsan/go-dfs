@@ -46,6 +46,11 @@ type Message struct {
 	Payload any
 }
 
+type MessageStoreFile struct {
+	Key  string
+	Size int64
+}
+
 func (s *FileServer) broadcast(msg *Message, encode bool) error {
 	buf := new(bytes.Buffer)
 	if encode {
@@ -69,17 +74,21 @@ func (s *FileServer) broadcast(msg *Message, encode bool) error {
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
 	// read the data from the reader and
-	// store it in the file store
-	buf := new(bytes.Buffer)
-	tee := io.TeeReader(r, buf)
 
+	fileBuffer := new(bytes.Buffer)
+	tee := io.TeeReader(r, fileBuffer)
+
+	// store it in the file store
 	if err := s.store.Write(key, tee); err != nil {
 		return err
 	}
 
 	// broadcast the file metadata to peers
 	p := &Message{
-		Payload: []byte(key),
+		Payload: MessageStoreFile{
+			Key:  key,
+			Size: int64(fileBuffer.Len()),
+		},
 	}
 	err := s.broadcast(p, true)
 	if err != nil {
@@ -88,7 +97,7 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 
 	// stream the file contents to peers
 	p = &Message{
-		Payload: buf.Bytes(),
+		Payload: fileBuffer.Bytes(),
 	}
 	// for now, just broadcast normally without encoding
 	err = s.broadcast(p, false)
@@ -148,40 +157,58 @@ func (s *FileServer) loop() {
 				log.Println("error decoding rpc: ", err)
 			}
 
-			fmt.Println("file metadata received on server ", s.StorageRoot, ": ", string(p.Payload.([]byte)))
-
-			peer, ok := s.peers[rpc.From]
-			if !ok {
-				log.Println("peer not found: ", rpc.From)
-				continue
-			}
-
-			// read the file contents from the stream
-			fileContent := make([]byte, 1024)
-
-			if _, err := peer.Read(fileContent); err != nil {
-				log.Println("error reading file contents: ", err)
-			}
-
-			fmt.Println("file content received on server ", s.StorageRoot, ": ", string(fileContent))
-
-			// Close stream decreaments the zemaphore thus
-			// the peer will end the waiting
-			peer.CloseStream()
+			s.handleMessage(rpc.From, &p)
 
 		}
 	}
 }
 
 func (s *FileServer) handleMessage(from string, msg *Message) error {
+	switch msg.Payload.(type) {
+	case MessageStoreFile:
+		return s.handleStoreFile(from, msg.Payload.(MessageStoreFile))
+	default:
 
-	fmt.Println("recieved message", string(msg.Payload.([]byte)))
-	// peer.CloseStream()
+	}
+	return nil
+}
 
+func (s *FileServer) handleStoreFile(from string, msg MessageStoreFile) error {
+	key := msg.Key
+	fmt.Println("file metadata received on server ", s.StorageRoot, " from ", from, " : ", key)
+
+	peer, ok := s.peers[from]
+	if !ok {
+		log.Println("peer not found: ", from)
+		return nil
+	}
+
+	// read the file contents from the stream
+	/*
+		fileContent := make([]byte, 1024)
+
+		if _, err := peer.Read(fileContent); err != nil {
+			log.Println("error reading file contents: ", err)
+		}
+
+		fmt.Println("file content received on server ", s.StorageRoot, ": ", string(fileContent))
+	*/
+	if err := s.store.Write(key, io.LimitReader(peer, msg.Size)); err != nil {
+		log.Println("error writing file contents: ", err)
+	}
+	fmt.Println("file content received on server ", s.StorageRoot, " from ", from, " : ", key)
+	// Close stream decreaments the zemaphore thus
+	// the peer will end the waiting
+	peer.CloseStream()
 	return nil
 }
 
 func (s *FileServer) Store(key string, r io.Reader) error {
 
 	return nil
+}
+
+func init() {
+	gob.Register(MessageStoreFile{})
+
 }
