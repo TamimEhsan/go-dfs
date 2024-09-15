@@ -14,7 +14,7 @@ type TCPPeer struct {
 	// if we accept a connection => inbound => outbound false
 	outbound bool
 	//
-	wg *sync.WaitGroup // can't it be a lock?
+	Wg *sync.WaitGroup // can't it be a lock?
 }
 
 type TCPTransportOpts struct {
@@ -34,7 +34,7 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
 		Conn:     conn,
 		outbound: outbound,
-		wg:       &sync.WaitGroup{},
+		Wg:       &sync.WaitGroup{},
 	}
 }
 
@@ -48,7 +48,7 @@ func (p *TCPPeer) RemoteAddr() net.Addr {
 }
 
 func (p *TCPPeer) CloseStream() {
-	p.wg.Done()
+	p.Wg.Done()
 }
 
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
@@ -143,11 +143,11 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 		msg.From = conn.RemoteAddr().String()
 		// then wait till the consumer consumes the
 		// file contents and closes the stream
-		peer.wg.Add(1)
+		peer.Wg.Add(1)
 		fmt.Println("Waiting for stream from: ", conn.RemoteAddr())
 		t.rpcCh <- msg
 
-		peer.wg.Wait()
+		peer.Wg.Wait()
 		fmt.Println("Stream done for: ", conn.RemoteAddr())
 	}
 

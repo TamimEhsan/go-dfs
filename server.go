@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/tamimehsan/go-distributed-fs/p2p"
 )
@@ -51,6 +52,10 @@ type MessageStoreFile struct {
 	Size int64
 }
 
+type MessageGetFile struct {
+	Key string
+}
+
 func (s *FileServer) broadcast(msg *Message, encode bool) error {
 	buf := new(bytes.Buffer)
 	if encode {
@@ -70,6 +75,30 @@ func (s *FileServer) broadcast(msg *Message, encode bool) error {
 	}
 
 	return nil
+}
+
+func (s *FileServer) ReadData(key string) (int64, io.Reader, error) {
+
+	if s.store.Exists(key) {
+		fmt.Println("Whaat?")
+		return s.store.Read(key)
+	}
+
+	fmt.Println("File doesn't exist on server, attempting to retrieve from network")
+	p := &Message{
+		Payload: MessageGetFile{
+			Key: key,
+		},
+	}
+	err := s.broadcast(p, true)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	time.Sleep(time.Millisecond * 3)
+
+	return s.store.Read(key)
+
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
@@ -167,6 +196,8 @@ func (s *FileServer) handleMessage(from string, msg *Message) error {
 	switch msg.Payload.(type) {
 	case MessageStoreFile:
 		return s.handleStoreFile(from, msg.Payload.(MessageStoreFile))
+	case MessageGetFile:
+		return s.handleGetFile(from, msg.Payload.(MessageGetFile))
 	default:
 
 	}
@@ -183,16 +214,7 @@ func (s *FileServer) handleStoreFile(from string, msg MessageStoreFile) error {
 		return nil
 	}
 
-	// read the file contents from the stream
-	/*
-		fileContent := make([]byte, 1024)
-
-		if _, err := peer.Read(fileContent); err != nil {
-			log.Println("error reading file contents: ", err)
-		}
-
-		fmt.Println("file content received on server ", s.StorageRoot, ": ", string(fileContent))
-	*/
+	// read the file contents from the stream and write to file
 	if err := s.store.Write(key, io.LimitReader(peer, msg.Size)); err != nil {
 		log.Println("error writing file contents: ", err)
 	}
@@ -203,6 +225,55 @@ func (s *FileServer) handleStoreFile(from string, msg MessageStoreFile) error {
 	return nil
 }
 
+func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
+	if !s.store.Exists(msg.Key) {
+		fmt.Println("file doesn't exist here too!")
+		return nil
+	}
+
+	// peer, ok := s.peers[from]
+	// if !ok {
+	// 	fmt.Println("Peer not found")
+	// 	return nil
+	// }
+
+	fmt.Println("file retrieved to server to network!")
+
+	n, r, err := s.store.Read(msg.Key)
+	if err != nil {
+		return err
+	}
+
+	p := &Message{
+		Payload: MessageStoreFile{
+			Key:  msg.Key,
+			Size: int64(n),
+		},
+	}
+	err = s.broadcast(p, true)
+	if err != nil {
+		return err
+	}
+
+	// stream the file contents to peers
+	fileBuffer := new(bytes.Buffer)
+	io.Copy(fileBuffer, r)
+	// fmt.Println("attempting to send file data:::", fileBuffer.String())
+	p = &Message{
+		Payload: fileBuffer.Bytes(),
+	}
+	// for now, just broadcast normally without encoding
+	err = s.broadcast(p, false)
+	if err != nil {
+		return err
+	}
+
+	peer := s.peers[from]
+	peer.CloseStream()
+
+	return err
+}
+
 func (s *FileServer) Store(key string, r io.Reader) error {
 
 	return nil
@@ -210,5 +281,5 @@ func (s *FileServer) Store(key string, r io.Reader) error {
 
 func init() {
 	gob.Register(MessageStoreFile{})
-
+	gob.Register(MessageGetFile{})
 }

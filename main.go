@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -47,9 +49,18 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 
-	data := bytes.NewReader([]byte("Lorem Ipsum is simply dummy text of the printing and typesetting industry."))
-	s2.StoreData("hello.txt", data)
+	// data := bytes.NewReader([]byte("Lorem Ipsum is simply dummy text of the printing and typesetting industry."))
+	// s2.StoreData("hello.txt", data)
+	_, r, err := s2.ReadData("hello.txt")
 
+	if err != nil {
+		fmt.Println("Oh no!")
+		fmt.Println(err.Error())
+	}
+
+	buff := new(bytes.Buffer)
+	io.Copy(buff, r)
+	fmt.Print("recieved from server::: ", buff.String())
 	select {}
 
 	// go func() {

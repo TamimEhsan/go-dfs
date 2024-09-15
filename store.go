@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"path"
@@ -87,7 +86,8 @@ func (s *Store) Exists(key string) bool {
 	pathKey := s.PathTransform(key)
 	fileNameWithPath := path.Join(s.Root, pathKey.fileNameWithPath())
 	_, err := os.Stat(fileNameWithPath)
-	return err != fs.ErrNotExist
+
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func (s *Store) Delete(key string) error {
@@ -97,32 +97,20 @@ func (s *Store) Delete(key string) error {
 	return os.RemoveAll(strings.Join(strings.Split(filepath, "/")[:2], "/"))
 }
 
-func (s *Store) Read(key string) (io.Reader, error) {
-	f, err := s.ReadStream(key)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	buf := new(bytes.Buffer)
-	n, err := io.Copy(buf, f)
-
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("read %d bytes from %s", n, key)
-	return buf, nil
+func (s *Store) Read(key string) (int64, io.Reader, error) {
+	return s.ReadStream(key)
 }
 
-func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
+func (s *Store) ReadStream(key string) (int64, io.ReadCloser, error) {
 	pathKey := s.PathTransform(key)
 	fileNameWithPath := path.Join(s.Root, pathKey.fileNameWithPath())
-	f, err := os.Open(fileNameWithPath)
+	file, err := os.Open(fileNameWithPath)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
+	fi, err := file.Stat()
 
-	return f, nil
+	return fi.Size(), file, nil
 }
 
 func (s *Store) Write(key string, r io.Reader) error {
