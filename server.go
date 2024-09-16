@@ -95,7 +95,7 @@ func (s *FileServer) ReadData(key string) (int64, io.Reader, error) {
 		return 0, nil, err
 	}
 
-	time.Sleep(time.Millisecond * 3)
+	time.Sleep(time.Second * 3)
 
 	return s.store.Read(key)
 
@@ -125,11 +125,14 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 	}
 
 	// stream the file contents to peers
-	p = &Message{
-		Payload: fileBuffer.Bytes(),
+	time.Sleep(time.Millisecond * 5)
+
+	peers := []io.Writer{}
+	for _, peer := range s.peers {
+		peers = append(peers, peer)
 	}
-	// for now, just broadcast normally without encoding
-	err = s.broadcast(p, false)
+	mw := io.MultiWriter(peers...)
+	_, err = io.Copy(mw, fileBuffer)
 	if err != nil {
 		return err
 	}
@@ -250,25 +253,25 @@ func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
 			Size: int64(n),
 		},
 	}
-	err = s.broadcast(p, true)
-	if err != nil {
-		return err
-	}
-
-	// stream the file contents to peers
-	fileBuffer := new(bytes.Buffer)
-	io.Copy(fileBuffer, r)
-	// fmt.Println("attempting to send file data:::", fileBuffer.String())
-	p = &Message{
-		Payload: fileBuffer.Bytes(),
-	}
-	// for now, just broadcast normally without encoding
-	err = s.broadcast(p, false)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(p); err != nil {
 		return err
 	}
 
 	peer := s.peers[from]
+	err = peer.Send(buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	// stream the file contents to the peer
+
+	_, err = io.Copy(peer, r)
+	// fmt.Println("attempting to send file data:::", fileBuffer.String())
+	if err != nil {
+		return err
+	}
+
 	peer.CloseStream()
 
 	return err
