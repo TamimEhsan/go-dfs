@@ -234,11 +234,11 @@ func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
 		return nil
 	}
 
-	// peer, ok := s.peers[from]
-	// if !ok {
-	// 	fmt.Println("Peer not found")
-	// 	return nil
-	// }
+	peer, ok := s.peers[from]
+	if !ok {
+		fmt.Println("Peer not found")
+		return nil
+	}
 
 	fmt.Println("file retrieved to server to network!")
 
@@ -246,6 +246,9 @@ func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
 	if err != nil {
 		return err
 	}
+
+	defer r.(io.ReadCloser).Close()
+	
 
 	p := &Message{
 		Payload: MessageStoreFile{
@@ -258,7 +261,6 @@ func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
 		return err
 	}
 
-	peer := s.peers[from]
 	err = peer.Send(buf.Bytes())
 	if err != nil {
 		return err

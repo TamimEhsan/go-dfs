@@ -56,18 +56,26 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 
-	// data := bytes.NewReader([]byte("Lorem Ipsum is simply dummy text of the printing and typesetting industry."))
-	// s3.StoreData("hello.txt", data)
-	_, r, err := s3.ReadData("hello.txt")
+	for i := 0; i < 3; i++ {
+		data := bytes.NewReader([]byte("Lorem Ipsum is simply dummy text of the printing and typesetting industry."))
+		s3.StoreData(fmt.Sprintf("hello_%d.txt", i), data)
+		time.Sleep(1 * time.Second)
+		s3.store.Delete(fmt.Sprintf("hello_%d.txt", i))
+		time.Sleep(1 * time.Second)
+		_, r, err := s3.ReadData("hello.txt")
 
-	if err != nil {
-		fmt.Println("Oh no!")
-		fmt.Println(err.Error())
+		if err != nil {
+			fmt.Println("Oh no!")
+			fmt.Println(err.Error())
+			continue
+		}
+
+		buff := new(bytes.Buffer)
+		io.Copy(buff, r)
+		r.(io.ReadCloser).Close()
+		fmt.Print("recieved from server::: ", buff.String())
 	}
 
-	buff := new(bytes.Buffer)
-	io.Copy(buff, r)
-	fmt.Print("recieved from server::: ", buff.String())
 	select {}
 
 	// go func() {
