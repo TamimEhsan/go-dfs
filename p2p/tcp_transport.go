@@ -25,9 +25,10 @@ type TCPTransportOpts struct {
 
 type TCPTransport struct {
 	TCPTransportOpts
-	listener net.Listener
-	rpcCh    chan RPC
-	PushPeer func(Peer) error
+	listener       net.Listener
+	rpcCh          chan RPC
+	PushAddPeer    func(Peer) error
+	PushRemovePeer func(Peer) error
 }
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
@@ -112,20 +113,22 @@ func (t *TCPTransport) startAcceptLoop() {
 
 // handle incoming connection
 func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
+	peer := NewTCPPeer(conn, outbound)
 
 	defer func() {
 		fmt.Println("closing connection: ", conn.RemoteAddr())
 		conn.Close()
+		if t.PushRemovePeer != nil {
+			t.PushRemovePeer(peer)
+		}
 	}()
-
-	peer := NewTCPPeer(conn, outbound)
 
 	if err := t.HandShakeFunc(peer); err != nil {
 		return
 	}
 
-	if t.PushPeer != nil {
-		if err := t.PushPeer(peer); err != nil {
+	if t.PushAddPeer != nil {
+		if err := t.PushAddPeer(peer); err != nil {
 			return
 		}
 	}

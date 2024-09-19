@@ -152,6 +152,14 @@ func (s *FileServer) AddPeer(peer p2p.Peer) error {
 	return nil
 }
 
+func (s *FileServer) RemovePeer(peer p2p.Peer) error {
+	s.peerLock.Lock()
+	defer s.peerLock.Unlock()
+	delete(s.peers, peer.RemoteAddr().String())
+	fmt.Println("peer removed: ", peer.RemoteAddr().String())
+	return nil
+}
+
 func (s *FileServer) bootstrapNetwork() {
 	for _, peer := range s.BootstrapNodes {
 		if len(peer) == 0 {
@@ -248,7 +256,6 @@ func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
 	}
 
 	defer r.(io.ReadCloser).Close()
-	
 
 	p := &Message{
 		Payload: MessageStoreFile{

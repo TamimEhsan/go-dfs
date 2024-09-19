@@ -1,11 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
-	"io"
-	"log"
-	"time"
+	"os"
 
 	"github.com/tamimehsan/go-distributed-fs/p2p"
 )
@@ -27,60 +26,40 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 	s := NewFileServer(FileServerOpts)
 
 	// tcp transport will push peers to the server
-	tcpTransport.PushPeer = s.AddPeer
+	tcpTransport.PushAddPeer = s.AddPeer
+	tcpTransport.PushRemovePeer = s.RemovePeer
 
 	return s
 }
 
 func main() {
 
-	s1 := makeServer(":4001", "")
-	s2 := makeServer(":4002", "")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run main.go <port>")
+		os.Exit(1)
+	}
+	addr := os.Args[1]
 
-	s3 := makeServer(":4003", ":4001", ":4002")
-
-	go func() {
-		if err := s1.Start(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	go func() {
-		if err := s2.Start(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
-	time.Sleep(2 * time.Second)
-
-	go s3.Start()
-
-	time.Sleep(2 * time.Second)
-
-	for i := 0; i < 3; i++ {
-		data := bytes.NewReader([]byte("Lorem Ipsum is simply dummy text of the printing and typesetting industry."))
-		s3.StoreData(fmt.Sprintf("hello_%d.txt", i), data)
-		time.Sleep(1 * time.Second)
-		s3.store.Delete(fmt.Sprintf("hello_%d.txt", i))
-		time.Sleep(1 * time.Second)
-		_, r, err := s3.ReadData("hello.txt")
-
-		if err != nil {
-			fmt.Println("Oh no!")
-			fmt.Println(err.Error())
-			continue
-		}
-
-		buff := new(bytes.Buffer)
-		io.Copy(buff, r)
-		r.(io.ReadCloser).Close()
-		fmt.Print("recieved from server::: ", buff.String())
+	var node string
+	if len(os.Args) > 2 {
+		node = os.Args[2]
 	}
 
-	select {}
+	s := makeServer(addr, node)
 
-	// go func() {
-	// 	time.Sleep(5 * time.Second)
-	// 	server.Stop()
-	// }()
+	go s.Start()
+	for {
+		var fileName, data string
+		fmt.Println("Enter file name: ")
+		fmt.Scanln(&fileName)
+
+		fmt.Println("Enter data: ")
+		reader := bufio.NewReader(os.Stdin)
+		data, _ = reader.ReadString('\n')
+
+		buf := new(bytes.Buffer)
+		buf.WriteString(data)
+		s.StoreData(fileName, buf)
+	}
 
 }
