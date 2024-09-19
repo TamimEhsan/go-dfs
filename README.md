@@ -11,6 +11,7 @@ Progress so far
 - Save file recieved from network
 - Get and serve non local file from network
 - Fix streaming for file contents
+- Remove peers after closing
 
 ## Sequence Diagrams
 ### Saving a file
