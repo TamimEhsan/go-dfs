@@ -17,6 +17,8 @@ The files are stored in the local file system with the help of a store encapsula
 ### Gossip protocol
 To decrease the load on a single node, the synchronization between network is done through gossip protocol or epidemic protocol. When a file is uploaded to any single node, it sends the file to a randomly selected number of peers which in turn send to some other peers. This everntually makes the system consistent. Accroding to CAP theorem, the system is not immediately consistent but available and parition tolerant.
 
+![gossip](https://miro.medium.com/v2/resize:fit:960/1*g-2JSkw7LxpKod2sd4Lt4w.gif)
+
 ### Peer discovery
 Peer discovery in system is also done by gossip. When a new node joins the cluster it needs to join through a known peer already in the cluster. That known peer sends the peer joining information to the rest of the cluster.
 

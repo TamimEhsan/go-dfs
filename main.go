@@ -9,7 +9,7 @@ import (
 	"github.com/tamimehsan/go-distributed-fs/p2p"
 )
 
-func makeServer(listenAddr string, nodes ...string) *FileServer {
+func makeServer(listenAddr string, nodes []string) *FileServer {
 	tcpTransportOpts := p2p.TCPTransportOpts{
 		ListenAddr:    listenAddr,
 		HandShakeFunc: p2p.NOPHandshake,
@@ -40,12 +40,12 @@ func main() {
 	}
 	addr := os.Args[1]
 
-	var node string
+	var nodes []string
 	if len(os.Args) > 2 {
-		node = os.Args[2]
+		nodes = os.Args[2:]
 	}
 
-	s := makeServer(addr, node)
+	s := makeServer(addr, nodes)
 
 	go s.Start()
 	for {

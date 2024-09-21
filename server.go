@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -77,6 +78,25 @@ func (s *FileServer) broadcast(msg *Message, encode bool) error {
 	return nil
 }
 
+func (s *FileServer) gossip(msg *Message, peers []io.Writer, encode bool) error {
+	buf := new(bytes.Buffer)
+	if encode {
+		if err := gob.NewEncoder(buf).Encode(msg); err != nil {
+			return err
+		}
+	} else {
+		buf.Write(msg.Payload.([]byte))
+	}
+
+	mw := io.MultiWriter(peers...)
+	_, err := io.Copy(mw, buf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *FileServer) ReadData(key string) (int64, io.Reader, error) {
 
 	if s.store.Exists(key) {
@@ -103,23 +123,42 @@ func (s *FileServer) ReadData(key string) (int64, io.Reader, error) {
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
 	// read the data from the reader and
-
 	fileBuffer := new(bytes.Buffer)
 	tee := io.TeeReader(r, fileBuffer)
+
+	// check if the file already exists
+	exists := s.store.Exists(key)
 
 	// store it in the file store
 	if err := s.store.Write(key, tee); err != nil {
 		return err
 	}
 
-	// broadcast the file metadata to peers
+	// if the file already exists, no need to gossip
+	if exists {
+		return nil
+	}
+	// gossip the file metadata to peers
 	p := &Message{
 		Payload: MessageStoreFile{
 			Key:  key,
 			Size: int64(fileBuffer.Len()),
 		},
 	}
-	err := s.broadcast(p, true)
+
+	peers := []io.Writer{}
+	for _, peer := range s.peers {
+		peers = append(peers, peer)
+	}
+	// randomly shuffle the peers
+	rand.Shuffle(len(peers), func(i, j int) {
+		peers[i], peers[j] = peers[j], peers[i]
+	})
+	if len(peers) > 2 {
+		peers = peers[:2]
+	}
+
+	err := s.gossip(p, peers, true)
 	if err != nil {
 		return err
 	}
@@ -127,10 +166,6 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 	// stream the file contents to peers
 	time.Sleep(time.Millisecond * 5)
 
-	peers := []io.Writer{}
-	for _, peer := range s.peers {
-		peers = append(peers, peer)
-	}
 	mw := io.MultiWriter(peers...)
 	_, err = io.Copy(mw, fileBuffer)
 	if err != nil {
@@ -226,9 +261,8 @@ func (s *FileServer) handleStoreFile(from string, msg MessageStoreFile) error {
 	}
 
 	// read the file contents from the stream and write to file
-	if err := s.store.Write(key, io.LimitReader(peer, msg.Size)); err != nil {
-		log.Println("error writing file contents: ", err)
-	}
+	s.StoreData(key, io.LimitReader(peer, msg.Size))
+	
 	fmt.Println("file content received on server ", s.StorageRoot, " from ", from, " : ", key)
 	// Close stream decreaments the zemaphore thus
 	// the peer will end the waiting
@@ -284,11 +318,6 @@ func (s *FileServer) handleGetFile(from string, msg MessageGetFile) error {
 	peer.CloseStream()
 
 	return err
-}
-
-func (s *FileServer) Store(key string, r io.Reader) error {
-
-	return nil
 }
 
 func init() {
