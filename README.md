@@ -106,3 +106,6 @@ sequenceDiagram
     deactivate Server
     deactivate Client
 ```
+
+## Acknowledgement
+The project is built on top of the tutorial by [Anthony](https://github.com/anthdm) and further modification and new features were added. 
