@@ -17,6 +17,7 @@ type Peer interface {
 type Transport interface {
 	Dial(string) error
 	ListenAndAccept() error
+	LocalAddr() string
 
 	// consume returns a recieve only channel
 	Consume() <-chan RPC

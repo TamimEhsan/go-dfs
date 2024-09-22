@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/tamimehsan/go-distributed-fs/p2p"
 )
@@ -17,7 +18,7 @@ func makeServer(listenAddr string, nodes []string) *FileServer {
 	}
 	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
 	FileServerOpts := FileServerOpts{
-		StorageRoot:       listenAddr[1:] + "_network",
+		StorageRoot:       strings.Split(listenAddr, ":")[1] + "_network",
 		PathTransformFunc: CASPathTransform,
 		Transport:         tcpTransport,
 		BootstrapNodes:    nodes,

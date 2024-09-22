@@ -59,6 +59,10 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	}
 }
 
+func (t *TCPTransport) LocalAddr() string {
+	return t.TCPTransportOpts.ListenAddr
+}
+
 // consume implements the transport interface
 // and returns a receive only channel to consume
 // incoming messages
@@ -75,6 +79,7 @@ func (t *TCPTransport) Dial(addr string) error {
 	if err != nil {
 		return err
 	}
+
 	go t.handleConn(conn, true)
 	return nil
 }
