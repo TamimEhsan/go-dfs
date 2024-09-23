@@ -6,6 +6,11 @@ Go-DFS is a distributed file system written in golang. The system has the capabi
 ### Network layer
 The system builds on top of TCP transport layer. The session, connections are managed by the system. 
 
+### Gossip protocol
+To decrease the load on a single node, the synchronization between network is done through gossip protocol or epidemic protocol. This everntually makes the system consistent. Accroding to CAP theorem, the system is not immediately consistent but available and parition tolerant.
+
+![gossip](https://miro.medium.com/v2/resize:fit:960/1*g-2JSkw7LxpKod2sd4Lt4w.gif)
+
 ### Storage
 The files are stored in the local file system with the help of a store encapsulation. The storage supports 5 main functionalities
 - Check existence of a file
@@ -14,13 +19,21 @@ The files are stored in the local file system with the help of a store encapsula
 - Retrieve a file
 - Delete a file
 
-### Gossip protocol
-To decrease the load on a single node, the synchronization between network is done through gossip protocol or epidemic protocol. When a file is uploaded to any single node, it sends the file to a randomly selected number of peers which in turn send to some other peers. This everntually makes the system consistent. Accroding to CAP theorem, the system is not immediately consistent but available and parition tolerant.
+#### Storing file
+A file is stored with an associated key. Once the file is successfully saved, the client is notified of the upload status.  
+Synchronization between the peers in the network is then performed asynchronously using a gossip protocol. A random set of nodes is multicasted with the file data, and those nodes, in turn, propagate it to some of their peers, eventually leading to a consistent system.
 
-![gossip](https://miro.medium.com/v2/resize:fit:960/1*g-2JSkw7LxpKod2sd4Lt4w.gif)
+See the [sequence diagram](#saving-a-file) for more clarity.
+
+#### Retriving a file
+Upon a retrieval request, if the file is present in the peer's storage, it responds with the file data. If the file is not present, a file request is broadcast to the network. If another node has the file, it sends it back, and the client is then provided with the file. If no node has the file, the client is notified of an error.
+
+See the [sequence diagram](#get-a-file-through-network) for more clarity.
 
 ### Peer discovery
 Peer discovery in system is also done by gossip. When a new node joins the cluster it needs to join through a known peer already in the cluster. That known peer sends the peer joining information to the rest of the cluster.
+
+See the [sequence diagram](#peer-discovery-1) for more clarity.
 
 ## How to run
 ### Prequisites
