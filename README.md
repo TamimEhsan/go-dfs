@@ -42,6 +42,7 @@ go run . 127.0.0.1:4002 127.0.0.1:4001 # run the second node
 ```
 You can add as much number of nodes you want
 ## Sequence Diagrams
+
 ### Saving a file
 ```mermaid
 sequenceDiagram
@@ -54,11 +55,14 @@ sequenceDiagram
     participant Store2 as Peer Storage
 
     Client->>Server: Upload file
-    Server->>Store1: Save file
     activate Server
+    Server->>Store1: Save file
+    
     Server->>TL1: Send metadata (filename, size)
     TL1->>TL2: Send metadata by TCP
+    activate TL2
     TL2->>Peer: Send metadata (filename, size)
+    deactivate TL2
     activate Peer
     Peer->>TL2: Lock transport layer
     Server->>Peer: Stream file data
@@ -79,21 +83,24 @@ sequenceDiagram
     participant Store2 as Peer Storage
 
     activate Client
-    activate Server
+    
     Client->>Server: Request file
+    activate Server
     Server->>Store1: Check local storage
+    
     alt File found
         Store1->>Server: Send file
         Server->>Client: Send file
     else File not found
         Store1->>Server: File not found
-        Server->>TL1: Broadcast getfile
-        TL1->>TL2: Get File
-        TL2->>Peer: Peer receives getfile
+        Server->>TL1: Broadcast file request
+        TL1->>TL2: File Request
+        TL2->>Peer: Peer receives file request
 
         activate Peer
-        activate Store2
+       
         Peer->>Store2: Get file 
+        activate Store2
         Store2->>Peer: Retrieve File Stream
         deactivate Store2
         Peer->>TL2: Send metadata (filename, size)
@@ -107,6 +114,23 @@ sequenceDiagram
     end
     deactivate Server
     deactivate Client
+```
+
+### Peer discovery
+
+```mermaid
+sequenceDiagram
+    participant NodeA as New Node
+    participant NodeB as Known Peer NodeB
+    participant NodeC as Peer of NodeB
+    participant NodeD as Another Peer
+
+    NodeA->>NodeB: Establish TCP connection
+    NodeA->>NodeB: Send NodeA address
+    NodeB->>NodeC: Gossip NodeA address
+    NodeC->>NodeA: Connect to NodeA
+    NodeC->>NodeD: Gossip NodeA address
+    NodeD->>NodeA: Connect to NodeA
 ```
 
 ## Acknowledgement
